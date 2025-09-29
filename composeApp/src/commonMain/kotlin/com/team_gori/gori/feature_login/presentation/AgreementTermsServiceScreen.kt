@@ -22,11 +22,11 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.team_gori.gori.designsystem.component.GoriCheckBox
@@ -49,6 +49,14 @@ fun AgreementTermsServiceScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val uiState by viewModel.uiState.collectAsState()
 
+    LaunchedEffect(Unit) {
+        viewModel.navEvent.collect { event ->
+            when (event) {
+                AgreementTermsServiceNavEvent.NavigateToSignUp -> onNavigateToSignUp()
+            }
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -65,7 +73,7 @@ fun AgreementTermsServiceScreen(
                     },
                 )
             },
-        ) { innerPadding ->
+        ) {
             Column(
                 modifier = Modifier.padding(horizontal = 16.dp)
             ) {
@@ -79,7 +87,7 @@ fun AgreementTermsServiceScreen(
                 GoriCheckBox(
                     text = "네, 모두 동의합니다.",
                     checked = uiState.isAllAgreedChecked,
-                    onCheckChange = viewModel::onAllAgreedChange
+                    onCheckChange = { viewModel.onEvent(AgreementTermsServiceUiEvent.AllAgreementToggled(it)) }
                 )
                 HorizontalDivider(
                     thickness = 1.dp,
@@ -91,17 +99,17 @@ fun AgreementTermsServiceScreen(
                 GoriCheckBox(
                     text = "(필수) 서비스 이용약관 동의",
                     checked = uiState.termsAgreed,
-                    onCheckChange = viewModel::onTermsAgreedChange
+                    onCheckChange = { viewModel.onEvent(AgreementTermsServiceUiEvent.TermsAgreementToggled(it)) }
                 )
                 GoriCheckBox(
                     text = "(필수) 개인정보 수집 이용 동의",
                     checked = uiState.privacyAgreed,
-                    onCheckChange = viewModel::onPrivacyAgreedChange
+                    onCheckChange = { viewModel.onEvent(AgreementTermsServiceUiEvent.PrivacyAgreementToggled(it)) }
                 )
                 GoriCheckBox(
                     text = "(선택) 홍보 및 마케팅 이용 동의",
                     checked = uiState.marketingAgreed,
-                    onCheckChange = viewModel::onMarketingAgreedChange
+                    onCheckChange = { viewModel.onEvent(AgreementTermsServiceUiEvent.MarketingAgreementToggled(it)) }
                 )
                 Spacer(modifier = Modifier.weight(1f))
                 Button(
@@ -112,9 +120,7 @@ fun AgreementTermsServiceScreen(
                             color = Neutral30,
                             shape = RoundedCornerShape(size = 30.dp)
                         ),
-                    onClick = {
-                        onNavigateToSignUp()
-                    },
+                    onClick = { viewModel.onEvent(AgreementTermsServiceUiEvent.NextClicked) },
                     content = {
                         Text(
                             "다음",
@@ -122,7 +128,7 @@ fun AgreementTermsServiceScreen(
                             style = MaterialTheme.typography.headlineMedium
                         )
                     },
-                    enabled = viewModel.uiState.value.isNextButtonEnabled,
+                    enabled = uiState.isNextButtonEnabled,
                     colors = ButtonColors(
                         containerColor = MaterialTheme.semanticColors.labelNormal,
                         contentColor = MaterialTheme.semanticColors.onSecondary,
