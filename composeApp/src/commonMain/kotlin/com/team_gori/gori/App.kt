@@ -13,7 +13,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -73,13 +74,184 @@ sealed interface MainEntry {
     data class NavigateTo(val tab: MainTab) : MainEntry
 }
 
+private const val KEY_ROUTE = "route"
+private const val KEY_RETURN_TAB = "returnTab"
+private const val KEY_INITIAL_TAB = "initialTab"
+private const val KEY_MEMBER_COUNT = "memberCount"
+private const val KEY_MEETING_ID = "meetingId"
+private const val KEY_ENTRY_TYPE = "entryType"
+private const val KEY_ENTRY_TAB = "entryTab"
+
+private const val ROUTE_MAIN = "main"
+private const val ROUTE_DESIGN_GALLERY = "design_gallery"
+private const val ROUTE_ADD_FEED = "add_feed"
+private const val ROUTE_FEED_DETAIL = "feed_detail"
+private const val ROUTE_ADD_CHAT_ROOM = "add_chat_room"
+private const val ROUTE_CHAT_ROOM = "chat_room"
+private const val ROUTE_CHAT_SETTING = "chat_setting"
+private const val ROUTE_AGREEMENT_TERMS = "agreement_terms"
+private const val ROUTE_SIGN_UP = "sign_up"
+private const val ROUTE_INELIGIBLE = "ineligible"
+private const val ROUTE_SIGN_UP_BLACK_LIST = "sign_up_black_list"
+private const val ROUTE_VERIFY_CODE = "verify_code"
+private const val ROUTE_NICKNAME = "nickname"
+private const val ROUTE_PROFILE_IMAGE = "profile_image"
+private const val ROUTE_SIGN_UP_COMPLETE = "sign_up_complete"
+private const val ROUTE_CREATE_MEETING = "create_meeting"
+private const val ROUTE_MEETING_DETAIL = "meeting_detail"
+
+private const val ENTRY_SHOW_WELCOME = "show_welcome"
+private const val ENTRY_NAVIGATE_TO = "navigate_to"
+
+private val BooleanSaver = Saver<Boolean, Boolean>(
+    save = { it },
+    restore = { it ?: false }
+)
+
+private val MainTabSaver = Saver<MainTab, String>(
+    save = { it.route },
+    restore = { route -> route.toMainTabOrDefault() }
+)
+
+private val ScreenSaver = Saver<Screen, Map<String, String>>(
+    save = { screen ->
+        buildMap {
+            put(KEY_ROUTE, screen.toRoute())
+            when (screen) {
+                is Screen.Main -> {
+                    put(KEY_INITIAL_TAB, screen.initialTab.route)
+                    screen.entry?.let { entry ->
+                        put(KEY_ENTRY_TYPE, entry.toType())
+                        entry.entryTabRoute()?.let { put(KEY_ENTRY_TAB, it) }
+                    }
+                }
+                is Screen.DesignGallery -> put(KEY_RETURN_TAB, screen.returnTab.route)
+                is Screen.AddFeed -> put(KEY_RETURN_TAB, screen.returnTab.route)
+                is Screen.FeedDetail -> put(KEY_RETURN_TAB, screen.returnTab.route)
+                is Screen.AddChatRoom -> put(KEY_RETURN_TAB, screen.returnTab.route)
+                is Screen.ChatRoom -> put(KEY_RETURN_TAB, screen.returnTab.route)
+                is Screen.ChatSetting -> {
+                    put(KEY_RETURN_TAB, screen.returnTab.route)
+                    put(KEY_MEMBER_COUNT, screen.memberCount.toString())
+                }
+                is Screen.AgreementTerms -> put(KEY_RETURN_TAB, screen.returnTab.route)
+                is Screen.SignUp -> put(KEY_RETURN_TAB, screen.returnTab.route)
+                is Screen.Ineligible -> put(KEY_RETURN_TAB, screen.returnTab.route)
+                is Screen.SignUpBlackList -> put(KEY_RETURN_TAB, screen.returnTab.route)
+                is Screen.VerifyCode -> put(KEY_RETURN_TAB, screen.returnTab.route)
+                is Screen.Nickname -> put(KEY_RETURN_TAB, screen.returnTab.route)
+                is Screen.ProfileImage -> put(KEY_RETURN_TAB, screen.returnTab.route)
+                is Screen.SignUpComplete -> put(KEY_RETURN_TAB, screen.returnTab.route)
+                is Screen.CreateMeeting -> put(KEY_RETURN_TAB, screen.returnTab.route)
+                is Screen.MeetingDetail -> {
+                    put(KEY_RETURN_TAB, screen.returnTab.route)
+                    put(KEY_MEETING_ID, screen.meetingId)
+                }
+            }
+        }
+    },
+    restore = { saved ->
+        val data = saved ?: return@Saver Screen.Main()
+        when (data[KEY_ROUTE]) {
+            ROUTE_MAIN -> Screen.Main(
+                initialTab = data[KEY_INITIAL_TAB].toMainTabOrDefault(),
+                entry = data.restoreEntry()
+            )
+            ROUTE_DESIGN_GALLERY -> data.returnTabOrNull()?.let { Screen.DesignGallery(returnTab = it) }
+            ROUTE_ADD_FEED -> data.returnTabOrNull()?.let { Screen.AddFeed(returnTab = it) }
+            ROUTE_FEED_DETAIL -> data.returnTabOrNull()?.let { Screen.FeedDetail(returnTab = it) }
+            ROUTE_ADD_CHAT_ROOM -> data.returnTabOrNull()?.let { Screen.AddChatRoom(returnTab = it) }
+            ROUTE_CHAT_ROOM -> data.returnTabOrNull()?.let { Screen.ChatRoom(returnTab = it) }
+            ROUTE_CHAT_SETTING -> {
+                val memberCount = data[KEY_MEMBER_COUNT]?.toIntOrNull()
+                val returnTab = data.returnTabOrNull()
+                if (memberCount != null && returnTab != null) {
+                    Screen.ChatSetting(memberCount = memberCount, returnTab = returnTab)
+                } else {
+                    null
+                }
+            }
+            ROUTE_AGREEMENT_TERMS -> data.returnTabOrNull()?.let { Screen.AgreementTerms(returnTab = it) }
+            ROUTE_SIGN_UP -> data.returnTabOrNull()?.let { Screen.SignUp(returnTab = it) }
+            ROUTE_INELIGIBLE -> data.returnTabOrNull()?.let { Screen.Ineligible(returnTab = it) }
+            ROUTE_SIGN_UP_BLACK_LIST -> data.returnTabOrNull()?.let { Screen.SignUpBlackList(returnTab = it) }
+            ROUTE_VERIFY_CODE -> data.returnTabOrNull()?.let { Screen.VerifyCode(returnTab = it) }
+            ROUTE_NICKNAME -> data.returnTabOrNull()?.let { Screen.Nickname(returnTab = it) }
+            ROUTE_PROFILE_IMAGE -> data.returnTabOrNull()?.let { Screen.ProfileImage(returnTab = it) }
+            ROUTE_SIGN_UP_COMPLETE -> data.returnTabOrNull()?.let { Screen.SignUpComplete(returnTab = it) }
+            ROUTE_CREATE_MEETING -> data.returnTabOrNull()?.let { Screen.CreateMeeting(returnTab = it) }
+            ROUTE_MEETING_DETAIL -> {
+                val meetingId = data[KEY_MEETING_ID]
+                val returnTab = data.returnTabOrNull()
+                if (meetingId != null && returnTab != null) {
+                    Screen.MeetingDetail(returnTab = returnTab, meetingId = meetingId)
+                } else {
+                    null
+                }
+            }
+            else -> null
+        } ?: Screen.Main()
+    }
+)
+
+private fun Map<String, String>.returnTabOrNull(): MainTab? = this[KEY_RETURN_TAB]?.toMainTab()
+
+private fun Map<String, String>.restoreEntry(): MainEntry? {
+    return when (this[KEY_ENTRY_TYPE]) {
+        ENTRY_SHOW_WELCOME -> MainEntry.ShowWelcomeSheet
+        ENTRY_NAVIGATE_TO -> this[KEY_ENTRY_TAB]?.toMainTab()?.let { MainEntry.NavigateTo(it) }
+        else -> null
+    }
+}
+
+private fun Screen.toRoute(): String = when (this) {
+    is Screen.Main -> ROUTE_MAIN
+    is Screen.DesignGallery -> ROUTE_DESIGN_GALLERY
+    is Screen.AddFeed -> ROUTE_ADD_FEED
+    is Screen.FeedDetail -> ROUTE_FEED_DETAIL
+    is Screen.AddChatRoom -> ROUTE_ADD_CHAT_ROOM
+    is Screen.ChatRoom -> ROUTE_CHAT_ROOM
+    is Screen.ChatSetting -> ROUTE_CHAT_SETTING
+    is Screen.AgreementTerms -> ROUTE_AGREEMENT_TERMS
+    is Screen.SignUp -> ROUTE_SIGN_UP
+    is Screen.Ineligible -> ROUTE_INELIGIBLE
+    is Screen.SignUpBlackList -> ROUTE_SIGN_UP_BLACK_LIST
+    is Screen.VerifyCode -> ROUTE_VERIFY_CODE
+    is Screen.Nickname -> ROUTE_NICKNAME
+    is Screen.ProfileImage -> ROUTE_PROFILE_IMAGE
+    is Screen.SignUpComplete -> ROUTE_SIGN_UP_COMPLETE
+    is Screen.CreateMeeting -> ROUTE_CREATE_MEETING
+    is Screen.MeetingDetail -> ROUTE_MEETING_DETAIL
+}
+
+private fun MainEntry.toType(): String = when (this) {
+    MainEntry.ShowWelcomeSheet -> ENTRY_SHOW_WELCOME
+    is MainEntry.NavigateTo -> ENTRY_NAVIGATE_TO
+}
+
+private fun MainEntry.entryTabRoute(): String? = when (this) {
+    MainEntry.ShowWelcomeSheet -> null
+    is MainEntry.NavigateTo -> tab.route
+}
+
+private fun String?.toMainTabOrDefault(): MainTab = this?.toMainTab() ?: MainTab.Home
+
+private fun String?.toMainTab(): MainTab? = when (this) {
+    MainTab.Home.route -> MainTab.Home
+    MainTab.Meeting.route -> MainTab.Meeting
+    MainTab.Chatting.route -> MainTab.Chatting
+    MainTab.Daily.route -> MainTab.Daily
+    MainTab.MyActivity.route -> MainTab.MyActivity
+    else -> null
+}
+
 @OptIn(ExperimentalMaterial3Api::class) // TopAppBar 사용 시
 @Composable
 fun App() {
     CustomTheme {
-        var currentScreen: Screen by remember { mutableStateOf(Screen.Main()) }
-        var currentMainTab by remember { mutableStateOf<MainTab>(MainTab.Home) }
-        var showWelcome by remember { mutableStateOf(false) } // 예: 환영 시트 1회 露出
+        var currentScreen: Screen by rememberSaveable(stateSaver = ScreenSaver) { mutableStateOf(Screen.Main()) }
+        var currentMainTab by rememberSaveable(stateSaver = MainTabSaver) { mutableStateOf<MainTab>(MainTab.Home) }
+        var showWelcome by rememberSaveable(stateSaver = BooleanSaver) { mutableStateOf(false) } // 예: 환영 시트 1회 露出
 
         when (val screen = currentScreen) {
             is Screen.Main -> {
